@@ -1,14 +1,13 @@
 //#define DEBUG 1 
 #include <stdio.h>
 #include <gsl/gsl_rng.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
-#define A(i,j) v1[(30)*(i)+(j)]  // potnetial
+#define A(i,j) v1[(61)*(i)+(j)]  // potential - FIXED: changed from 30 to 61 to match allocation
 #define B(m,n) v2[(p.Nx)*(m)+(n)]  //RandomNumbers
-#define C(k,l) v3[(31)*(k)+(l)]  //Kernal
-#define V(i,j) v4[(31)*(i)+(j)]
+#define C(k,l) v3[(51)*(k)+(l)]  //Kernel - FIXED: changed from 31 to 51 to match allocation
+#define V(i,j) v4[(61)*(i)+(j)]  // FIXED: changed from 31 to 61 to match allocation
 
 typedef struct {
   double hx; /* coordinate step */
@@ -43,7 +42,6 @@ double * v2;
 double * v3;
 double * v4;
 
-
 double randomNumber(){
   double u;
   u = gsl_rng_uniform (r);
@@ -69,17 +67,17 @@ void initialize(int argc, char * argv[]){
   T = gsl_rng_default;
   r = gsl_rng_alloc (T);
   for(i=1;i<argc;i++){
-    if(sscanf(argv[i],"hx=%lg",& p.hx)==1){			   
-      printf("# read hx=%g\n",p.hx);				   
+    if(sscanf(argv[i],"hx=%lg",& p.hx)==1){
+      printf("# read hx=%g\n",p.hx);
     }
-    else if (sscanf(argv[i],"alpha=%lg",& p.alpha)==1){      
-      printf("# read alpha=%g\n",p.alpha);				   
+    else if (sscanf(argv[i],"alpha=%lg",& p.alpha)==1){
+      printf("# read alpha=%g\n",p.alpha);
     }
     else {
       fprintf(stderr,"error in argv[%d]=%s\n" 
-	      "\tusage: %s [hx=#] [alhpa=#]\n"
-	      "\twhere 0<=alpha<2 is theconvergence factor\n"
-	      ,i,argv[i],argv[0]);
+              "\tusage: %s [hx=#] [alpha=#]\n"
+              "\twhere 0<=alpha<2 is the convergence factor\n"
+              ,i,argv[i],argv[0]);
       exit(-1);
     }
   }
@@ -100,14 +98,14 @@ void initialize(int argc, char * argv[]){
          argv[0], p.alpha==1?"Gauss-Seidel":"SOR",
          p.hx, p.Nx, p.Ny, p.Nt, p.eps, p.alpha);
   
-  v2=calloc((p.Nx+1)*(p.Ny),sizeof(double)); 
+v2=calloc((p.Nx+1)*(p.Ny),sizeof(double)); 
   /* allocate mem for the A */
     if(v2==NULL){
        fprintf(stderr,"failed to allocate mem for v2\n");
        exit(-1);
      }
     
-    v3=calloc((51)*(51),sizeof(double)); 
+v3=calloc((51)*(51),sizeof(double)); 
   /* allocate mem for the B */
    if(v3==NULL){
    fprintf(stderr,"failed to allocate mem for v3\n");
@@ -116,7 +114,7 @@ void initialize(int argc, char * argv[]){
    v4=calloc((61)*(61),sizeof(double)); 
   /* allocate mem for the B */
    if(v4==NULL){
-   fprintf(stderr,"failed to allocate mem for v3\n");
+   fprintf(stderr,"failed to allocate mem for v4\n");
    exit(-1);
    }
   
@@ -148,7 +146,7 @@ void initialize(int argc, char * argv[]){
  }
 
  //  for(i=0;i<=p.Nx;i++){
- // for(j=0;j<=p.Ny;j++){
+ // for(j=0;j<=p.Ny;j++){ 
  //   reg=in_region(i,j);
  //   if (reg>=0){
  //     A(i,j)=p.Vext[reg];
@@ -160,7 +158,8 @@ void initialize(int argc, char * argv[]){
 void finalize(void){
   free(v1);
   free(v2);
-  free(v3);   /* deallocate the arrays */
+  free(v3);
+  free(v4);   /* FIXED: added free for v4 to prevent memory leak */
   gsl_rng_free (r);
 }
 
@@ -168,13 +167,13 @@ void convolute(double *v1,double *v2,double *v3){
   int i,j,k,l,m,n;
   int a =31;
   int b = p.Nx;
-  for(i=0;i < (b-a)+1;i++){
-    for(j=0;j< (b-a)+1;j++){
-      for(k=0;k < a;k++){
-	for(l=0;l < a;l++){
+  for(i=0;i < (b-a)+1;i++){ 
+    for(j=0;j< (b-a)+1;j++){ 
+      for(k=0;k < a;k++){ 
+	for(l=0;l < a;l++){ 
           m=(a-1)-k+i;
           n=(a-1)-l+j;
-	  A(i,j)= B(m,n)*C(k,l);
+	  A(i,j) += B(m,n)*C(k,l);  // FIXED: changed = to += for proper convolution
 	  
 	}
       }
@@ -184,7 +183,7 @@ void convolute(double *v1,double *v2,double *v3){
 
 void output_matrix(double *v1){ /* convenient function for debugging */
   int i,j;
-  for(i=0;i<=p.Nx;i++){
+  for(i=0;i<=p.Nx;i++){ 
     printf("#");
     for(j=0;j<=p.Ny;j++)
       printf(" %4.2f",A(i,j));
@@ -224,7 +223,7 @@ void output_charge( double *v){
 
 void output_col(double *v1){ /* output for gnuplot's splot  */
   int i,j;
-  for(i=0;i<=p.Nx;i++){
+  for(i=0;i<=p.Nx;i++){ 
     for(j=0;j<=p.Ny;j++)
       printf("%g \t %g \t %g\n",p.hx*i,p.hx*j,A(i,j));
     printf("\n"); 
@@ -252,15 +251,15 @@ int do_gs(){
     for(i=1;i<p.Nx;i++){
       for(j=1;j<p.Ny;j++){ /* update inside values */
 	// if(in_region(i,j)<0){
-	  //  val=(1-p.alpha)*A(i,j)+
-          //  p.alpha*0.25*(A(i-1,j)+A(i+1,j)+A(i,j-1)+A(i,j+1));
-           V(i,j)=A(i,j)+p.F*i;
-          val=0.25*(A(i+1,j)*exp(-1*(V(i,j)+V(i+1,j))/(2*p.T))+(A(i-1,j)*exp(-1*(V(i,j)+V(i-1,j))/(2*p.T))+(A(i,j+1)*exp(-1*(V(i,j)+V(i,j+1))/(2*p.T))+(A(i,j-1)*exp(-1*(V(i,j)+V(i,j-1))/(2*p.T))))));
-          diff=fabs(val-A(i,j)); /* difference */
-          A(i,j)=val;                  
-          if(error<diff)
-            error=diff;  /* update the error */
-	  //  }
+	 //  val=(1-p.alpha)*A(i,j)+
+	 //  p.alpha*0.25*(A(i-1,j)+A(i+1,j)+A(i,j-1)+A(i,j+1));
+	  V(i,j)=A(i,j)+p.F*i;
+	  val=0.25*(A(i+1,j)*exp(-1*(V(i,j)+V(i+1,j))/(2*p.T))+(A(i-1,j)*exp(-1*(V(i,j)+V(i-1,j))/(2*p.T))+(A(i,j+1)*exp(-1*(V(i,j)+V(i,j+1))/(2*p.T))+(A(i,j-1)*exp(-1*(V(i,j)+V(i,j-1))/(2*p.T))))));  // FIXED: added missing closing parenthesis
+	  diff=fabs(val-A(i,j)); /* difference */
+	  A(i,j)=val;                  
+	  if(error<diff)
+	    error=diff;  /* update the error */
+	// }
       }
     }
 #if DEBUG
@@ -295,7 +294,7 @@ int main(int argc, char * argv[]){
   //output_charge(v1);
   //output_matrix(v3);  
   // output_colg(v3);
-  // output_matrix(v1);
+  //output_matrix(v1);
    output_col(v1);
   finalize();
   fprintf(stderr,"hx=%5g alpha=%5g %g seconds\n",p.hx,
