@@ -16,5 +16,6 @@ newtonsMethod/newtonsMethod
 # Build artifacts
 *.exe
 *.dll
-logmap
-test
+logmap/logmap
+fixedPointSolve/fixedPointSolve
+pendulum/test
