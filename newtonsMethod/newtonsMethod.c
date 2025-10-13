@@ -55,5 +55,5 @@ double newtonIteration(double initialPoint){
         exit(1);
     }
     
-    return (x - ((x*x) - 5.0)/(2.0*x));
+    return x - (x*x - 5.0)/(2.0*x);
 }
