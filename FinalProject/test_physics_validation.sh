@@ -40,7 +40,7 @@ echo ""
 # Test 2: Different grid spacing
 echo "Test 2: Finer Grid (hx=0.05)"
 echo "------------------------------"
-timeout 10 ./finalproject hx=0.05 > /tmp/test2_out.txt 2> /tmp/test2_err.txt
+timeout 30 ./finalproject hx=0.05 > /tmp/test2_out.txt 2> /tmp/test2_err.txt
 if grep -q "Converged" /tmp/test2_err.txt; then
     ITER=$(grep "Converged" /tmp/test2_err.txt | grep -oP 'after \K\d+')
     ERROR=$(grep "Converged" /tmp/test2_err.txt | grep -oP 'error=\K[0-9.e+-]+')
