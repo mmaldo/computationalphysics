@@ -1,64 +1,68 @@
 /**
- * @file            NewtonsMethod.cpp
- * @description     This program aprroximates a solution to x^2-5
- *                  using Newtons Method.
+ * @file            newtonsMethod.c
+ * @description     This program approximates a solution to x^2 - 5 = 0
+ *                  using Newton's Method: x_{n+1} = x_n - f(x_n)/f'(x_n)
+ *                  For f(x) = x^2 - 5, we get: x_{n+1} = x_n - (x_n^2 - 5)/(2*x_n)
  * @course          Physics 177
  * @assignment      Homework 1 Problem 2
  * @date            4/7/2011
- * @author          Matthew Maldoando
- * @version         1.0
+ * @author          Matthew Maldonado
+ * @version         2.0
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 
-const int N = 10;   //number of iterations
+const int N = 10;   /* number of iterations */
 
 /**
- * Function used for approximation of x^2-5 is f(x)=x-A(x^2-5)
- * @param initialPoint is the initial guess
+ * Newton's Method iteration function for solving x^2 - 5 = 0
+ * Formula: x_{n+1} = x_n - f(x_n)/f'(x_n) = x_n - (x_n^2 - 5)/(2*x_n)
+ * @param initialPoint is the current approximation
  * @pre   initialPoint is initialized by the calling program
- * @post  initialPoint is sent into the approixmation function
- *        to get a new vslue
- * @return the the new value of the function, also new x value
+ * @post  returns the next approximation in the iteration
+ * @return the new value x_{n+1}
  */
-double fun(double intialPoint);
+double newtonIteration(double initialPoint);
 
 /**
- * @retunrn zero if application executes succesfully
+ * @return zero if application executes successfully
  */
 int main()
 {
-    double initialPoint = 1;        //initial guess
-    double newPoint = initialPoint; // x_n
-    double previousPoint;           //x_n-1
-    double convergenceCompare;        //|x_n-sqrt(5)|
-    int i;                          //counter
-   // FILE *fp;                       //file to write to
-        //enter file to write to
-    //fp = fopen("C:/Users/mmaldonado/Documents/My Dropbox/UCR/Spring Quarter/Physics 177/Assignments/gnuplot/newtonsMethod.data", "w");
-    printf("#Newton's Method\n#n   X_n-1   X_n   |x_n-sqrt(5)|\n");
+    double initialPoint = 1.0;      /* initial guess */
+    double newPoint = initialPoint; /* x_n */
+    double previousPoint;           /* x_{n-1} */
+    double convergenceError;        /* |x_n - sqrt(5)| */
+    int i;                          /* iteration counter */
+    
+    printf("#Newton's Method for solving x^2 - 5 = 0\n");
+    printf("#n\tX_{n-1}\t\tX_n\t\t|x_n - sqrt(5)|\n");
+    
     for(i = 0; i < N; i++){
         previousPoint = newPoint;
-        newPoint = fun(newPoint);
-        convergenceCompare = fabs(newPoint - sqrt(5));
-       // fprintf(fp,"%d      %g      %g      %g\n",i+1, previousPoint, newPoint, convergenceCompare);
-        printf("%d      %g      %g     %g\n",i+1, previousPoint, newPoint, convergenceCompare);
+        newPoint = newtonIteration(newPoint);
+        convergenceError = fabs(newPoint - sqrt(5));
+        printf("%d\t%.10g\t%.10g\t%.10g\n", i+1, previousPoint, newPoint, convergenceError);
     }
-    //fclose(fp); undo comment to write to file
+    
+    printf("\n# Exact value: sqrt(5) = %.15f\n", sqrt(5));
+    printf("# Final approximation: %.15f\n", newPoint);
+    printf("# Final error: %.15e\n", convergenceError);
+    
     return 0;
 }
 
-double fun(double intialPoint){
-    double x = intialPoint;
-
-    if (fabs(x) < 1e-10) {
-        fprintf(stderr, "Error: Division by zero in fun().\n");
+double newtonIteration(double initialPoint){
+    double x = initialPoint;
+    
+    /* Check if we're too close to zero (division by zero protection) */
+    if (fabs(x) < 1e-15) {
+        fprintf(stderr, "Error: x value too close to zero, cannot compute Newton iteration.\n");
         exit(1);
     }
-
-    return (x - ((x*x)-5)/(2*x));
-
+    
+    /* Newton's method: x_{n+1} = x - f(x)/f'(x) = x - (x^2-5)/(2x) */
+    return (x - ((x*x) - 5.0)/(2.0*x));
 }
-
