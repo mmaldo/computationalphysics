@@ -14,6 +14,7 @@
 #include <math.h>
 #include <time.h>
 #define A(i,j) v1[(p.Nx+1)*(i)+(j)]
+#define V(i,j) v4[(p.Nx+1)*(i)+(j)]
 
 typedef struct {
   double hx; /* coordinate step */
@@ -30,6 +31,8 @@ typedef struct {
   double R;   /* circle radius */
   double Xc;  /* center X */
   double Yc;  /* center Y */
+  double T;  /* temperature parameter for thermal effects */
+  double F;  /* external field strength */
 } params;
 
 /* Global RNG variables - initialized once for efficiency */
@@ -39,9 +42,10 @@ const gsl_rng_type * T;
 const double VV[]={1.0, 2.0};
 params p = { 0.1, 3.0, 3.0, 30, 30, 100, 1.0e-10, 1.0,
              2, VV ,
-             1., 1.5, 1.5}; 
+             1., 1.5, 1.5, 2.0, 2.0}; 
 
 double * v1; /* pointer to the potential array */
+double * v4; /* pointer to total potential V(i,j) = A(i,j) + F*i */
 
 /* Global RNG for efficient random number generation */
 gsl_rng * rng_generator = NULL;
@@ -138,6 +142,13 @@ void initialize(int argc, char * argv[]){
     exit(-1);
   }
   
+  /* allocate mem for total potential V(i,j) = A(i,j) + F*i */
+  v4=calloc((p.Nx+1)*(p.Ny+1),sizeof(double));
+  if(v4==NULL){
+    fprintf(stderr,"failed to allocate mem for v4\n");
+    exit(-1);
+  }
+  
   /* Set boundary values */
   for(i=0;i<=p.Nx;i++)
     for(j=0;j<=p.Ny;j++){
@@ -153,6 +164,7 @@ void initialize(int argc, char * argv[]){
  */
 void finalize(void){
   free(v1);
+  free(v4);
   if(rng_generator != NULL)
     gsl_rng_free(rng_generator);  /* free the RNG */
 }
@@ -229,8 +241,16 @@ void output_col(double *v1){
   printf("\n");
 }
 
-/* Does Gauss-Seidel method to solve differential equation
+/* Does Gauss-Seidel method to solve differential equation with thermal effects
  * Returns the number of iterations performed (positive if converged, negative if max iterations reached)
+ * 
+ * THERMAL MODIFICATION: Each neighbor contribution is weighted by a Boltzmann factor
+ *   A(i,j) = 0.25 * Σ A(neighbor) * exp(-(V(i,j) + V(neighbor))/(2*T))
+ * 
+ * where:
+ *   V(i,j) = A(i,j) + F*i  (total potential including external field)
+ *   T = temperature parameter
+ *   F = external field strength
  */
 int do_gs(int *iterations_out){
   int j,i,k;
@@ -240,8 +260,24 @@ int do_gs(int *iterations_out){
     for(i=1;i<p.Nx;i++){
       for(j=1;j<p.Ny;j++){ /* update inside values */
         if(in_region(i,j)<0){
-          val=(1-p.alpha)*A(i,j)+
-            p.alpha*0.25*(A(i-1,j)+A(i+1,j)+A(i,j-1)+A(i,j+1));
+          /* Calculate total potential V(i,j) = A(i,j) + F*i
+           * This includes the external field contribution */
+          V(i,j)=A(i,j)+p.F*i;
+          
+          /* Also compute V for all four neighbors */
+          V(i+1,j)=A(i+1,j)+p.F*(i+1);
+          V(i-1,j)=A(i-1,j)+p.F*(i-1);
+          V(i,j+1)=A(i,j+1)+p.F*i;
+          V(i,j-1)=A(i,j-1)+p.F*i;
+          
+          /* Thermal-weighted average of four neighbors
+           * Each term: A(neighbor) * exp(-(V(center)+V(neighbor))/(2*T))
+           * This is the core thermal modification to Laplace equation */
+          val=0.25*(A(i+1,j)*exp(-(V(i,j)+V(i+1,j))/(2*p.T)) +
+                    A(i-1,j)*exp(-(V(i,j)+V(i-1,j))/(2*p.T)) +
+                    A(i,j+1)*exp(-(V(i,j)+V(i,j+1))/(2*p.T)) +
+                    A(i,j-1)*exp(-(V(i,j)+V(i,j-1))/(2*p.T)));
+          
           diff=fabs(val-A(i,j)); /* difference */
           A(i,j)=val;                  
           if(error<diff)
