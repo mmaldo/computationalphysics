@@ -1,23 +1,37 @@
-//Solves Laplace equation in 2D, Gauss-Seidel method
+/*
+ * 2D Laplace Equation Solver using Gauss-Seidel and SOR Methods
+ * 
+ * This program solves the 2D Laplace equation (∇²φ = 0) for electrostatic 
+ * potential in a capacitor-like geometry:
+ * - Outer rectangular boundary at potential V₀ = 1.0V
+ * - Inner circular electrode at potential V₁ = 2.0V
+ * 
+ * The Gauss-Seidel method (alpha=1) or Successive Over-Relaxation (SOR, alpha>1)
+ * iteratively updates each grid point to the weighted average of its four neighbors
+ * until the solution converges to the specified tolerance.
+ * 
+ * The charge calculation uses Gauss's law: Q = ε₀∮E·dA, computed by integrating
+ * the electric field (gradient of potential) normal to each electrode surface.
+ * 
+ * SOR parameter alpha:
+ * - alpha = 1: Standard Gauss-Seidel
+ * - 1 < alpha < 2: Over-relaxation for faster convergence
+ * - Optimal alpha ≈ 2/(1 + π/N) for N×N grid
+ */
+
 //#define DEBUG 1 
 #include <stdio.h>
 #include <gsl/gsl_rng.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
-#include <vector>
-using namespace std;
+
 #define A(i,j) v1[(p.Nx+1)*(i)+(j)]
-#define B(i,j) v2[(p.Nx+1)*(i)+(j)]
-#define C(i,j) v3[(p.Nx+1)*(i)+(j)]
 
 typedef struct {
   double hx; /* coordinate step */
   double Xmax; /* real-space dimensions */
   double Ymax;
-  double Asize;   //size of A matrix
-  double Bsize;   //size of B matrix
   int Nx;    /* how many steps in x dimension */
   int Ny;    /* how many steps in y dimension */
   int Nt;    /* how many time steps */
@@ -29,34 +43,30 @@ typedef struct {
   double R;   /* circle radius */
   double Xc;  /* center X */
   double Yc;  /* center Y */
-  //vector <double> A;
 } params;
 
 const double VV[]={1.0, 2.0};
-params p = { 0.1, 3.0, 3.0,101,200, 30, 30, 100, 1.0e-10, 1.0,
+params p = { 0.1, 3.0, 3.0, 30, 30, 100, 1.0e-10, 1.0,
              2, VV ,
              1., 1.5, 1.5}; 
 
-double * v1; /* pointer to a vector */
-double * v2;
-double *v3;
+double * v1; /* pointer to the potential array */
 
-//Used to initiate potential
-double randumNumber(){
-	const gsl_rng_type * T;
-       	gsl_rng * r;
-     
-       	double u;
-     
-       	gsl_rng_env_setup();
-     
-       	T = gsl_rng_default;
-       	r = gsl_rng_alloc (T);
-     
-       u = gsl_rng_uniform (r);
-      gsl_rng_free (r);
-      return u;
-}    
+/* Global RNG for efficient random number generation */
+gsl_rng * rng_generator = NULL;
+
+/* Initialize the random number generator once at program start */
+void init_rng(void){
+  const gsl_rng_type * T;
+  gsl_rng_env_setup();
+  T = gsl_rng_default;
+  rng_generator = gsl_rng_alloc(T);
+}
+
+/* Generate a random number using the global RNG */
+double randomNumber(void){
+  return gsl_rng_uniform(rng_generator);
+}
      
 
 
@@ -82,8 +92,8 @@ void initialize(int argc, char * argv[]){
     }
     else {
       fprintf(stderr,"error in argv[%d]=%s\n" 
-	      "\tusage: %s [hx=#] [alhpa=#]\n"
-	      "\twhere 0<=alpha<2 is theconvergence factor\n"
+	      "\tusage: %s [hx=#] [alpha=#]\n"
+	      "\twhere 0<=alpha<2 is the convergence factor\n"
 	      ,i,argv[i],argv[0]);
       exit(-1);
     }
@@ -105,24 +115,9 @@ void initialize(int argc, char * argv[]){
          argv[0], p.alpha==1?"Gauss-Seidel":"SOR",
          p.hx, p.Nx, p.Ny, p.Nt, p.eps, p.alpha);
   
-  
-    v2=calloc((p.A+1)*(p.A+1),sizeof(double)); //allocates memory for v2 matrix
-  /* allocate mem for the A */
-    if(v2==NULL){
-       fprintf(stderr,"failed to allocate mem for v2\n");
-       exit(-1);
-     }
-  
-   v3=calloc((p.B+1)*(p.B+1),sizeof(double)); //allocates memory for v3 matrix
-  /* allocate mem for the B */
-   if(v3==NULL){
-   fprintf(stderr,"failed to allocate mem for v3\n");
-   exit(-1);
-   }
-  
   for(i=0;i<p.Nb;i++)
     printf(" Vext[%d]=%g",i,p.Vext[i]);
-    printf("\n");
+  printf("\n");
     v1=calloc((p.Nx+1)*(p.Ny+1),sizeof(double)); 
   /* allocate mem for the potential */
   if(v1==NULL){
@@ -139,8 +134,8 @@ void initialize(int argc, char * argv[]){
 
 void finalize(void){
   free(v1);
-  // free(v2);
-  // free(v3);   /* deallocate the arrays */
+  if(rng_generator != NULL)
+    gsl_rng_free(rng_generator);  /* free the RNG */
 }
 
 
@@ -194,8 +189,10 @@ void output_col(double *v1){ /* output for gnuplot's splot  */
   printf("\n");
 }
 
-//Does Gauss-Seidel method to solve differential equation
-int do_gs(){
+/* Does Gauss-Seidel method to solve differential equation
+ * Returns the number of iterations performed (positive if converged, negative if max iterations reached)
+ */
+int do_gs(int *iterations_out){
   int j,i,k;
   double error, diff, val;
   for(k=0;k<p.Nt;k++){
@@ -216,14 +213,21 @@ int do_gs(){
     printf("# this is v1, k=%d\n",k);
     output_matrix(v1);  
 #endif /* DEBUG */
-    if(error<p.eps) return 1; /* done */
+    if(error<p.eps){
+      *iterations_out = k+1;  /* converged */
+      return 1;
+    }
   }
+  *iterations_out = p.Nt;  /* max iterations reached */
   return 0;
 }
-// The main function of the program. This is is where the program
-// actually runs.
+/* The main function of the program. This is where the program actually runs. */
 int main(int argc, char * argv[]){
   int iter=0;
+  int gs_iterations=0;
+  int converged;
+  
+  init_rng();  /* Initialize the random number generator */
   initialize(argc, argv);
 
   do{
@@ -236,14 +240,17 @@ int main(int argc, char * argv[]){
     fflush(stdout);
     iter++;    
   }
-  while ((! do_gs()) && iter<p.Nt); 
+  while ((converged = !do_gs(&gs_iterations)) && iter<p.Nt); 
 
   output_col(v1); /* final output */
   output_charge(v1);
     
   finalize();
-  fprintf(stderr,"hx=%5g alpha=%5g %g seconds\n",p.hx,
-	  p.alpha,(double) (clock())/CLOCKS_PER_SEC);
+  
+  fprintf(stderr,"hx=%5g alpha=%5g iterations=%d %s %g seconds\n",
+          p.hx, p.alpha, gs_iterations,
+          converged ? "(max reached)" : "(converged)",
+          (double)(clock())/CLOCKS_PER_SEC);
   
   return 0;
 }
