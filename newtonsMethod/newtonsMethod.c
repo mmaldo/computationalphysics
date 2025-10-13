@@ -54,7 +54,7 @@ double fun(double intialPoint){
     double x = intialPoint;
 
     if (fabs(x) < 1e-10) {
-        fprintf(stderr, "Error: Division by zero (or near zero) in fun().\n");
+        fprintf(stderr, "Error: Division by zero in fun().\n");
         exit(1);
     }
 
