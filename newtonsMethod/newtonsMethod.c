@@ -33,7 +33,7 @@ int main()
     printf("#Newton's Method for solving x^2 - 5 = 0\n");
     printf("#n\tX_{n-1}\t\tX_n\t\t|x_n - sqrt(5)|\n");
     
-    for(i = 0; i < N; i++){ 
+    for(i = 0; i < N; i++) { 
         previousPoint = newPoint;
         newPoint = newtonIteration(newPoint);
         convergenceError = fabs(newPoint - sqrt(5));
