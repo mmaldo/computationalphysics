@@ -17,4 +17,5 @@ newtonsMethod/newtonsMethod
 *.exe
 *.dll
 logmap/logmap
-test
+fixedPointSolve/fixedPointSolve
+pendulum/test
