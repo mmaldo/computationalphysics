@@ -7,7 +7,7 @@ echo "Physics Validation Tests for finalproject.c"
 echo "=============================================="
 echo ""
 
-cd /home/runner/work/computationalphysics/computationalphysics/FinalProject
+cd "$(dirname "$0")"
 
 # Ensure the program is compiled
 if [ ! -f "./finalproject" ]; then
