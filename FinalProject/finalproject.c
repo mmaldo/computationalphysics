@@ -131,8 +131,8 @@ void initialize(int argc, char * argv[]){
   for(i=0;i<p.Nb;i++)
     printf(" Vext[%d]=%g",i,p.Vext[i]);
   printf("\n");
-    v1=calloc((p.Nx+1)*(p.Ny+1),sizeof(double)); 
   /* allocate mem for the potential */
+    v1=calloc((p.Nx+1)*(p.Ny+1),sizeof(double)); 
   if(v1==NULL){
     fprintf(stderr,"failed to allocate mem for v1\n");
     exit(-1);
