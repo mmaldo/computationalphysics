@@ -279,9 +279,9 @@ void convolute(double *v1,double *v2,double *v3){
   int i,j,k,l,m,n;
   int a = KERNEL_SIZE;
   int b = p.Nx;
-  
-  for(i=0;i < (b-a)+1;i++){ 
-    for(j=0;j< (b-a)+1;j++){ 
+  int limit = (b-a)+1;
+  for(i=0;i < limit;i++){ 
+    for(j=0;j< limit;j++){ 
       for(k=0;k < a;k++){ 
         for(l=0;l < a;l++){ 
           m=(a-1)-k+i;
