@@ -1,27 +1,28 @@
-//Solves Laplace equation in 2D, Gauss-Seidel method
+/**
+ * @file            finalproject.c
+ * @description     Solves 2D Laplace equation for electrostatic potential between
+ *                  rectangular and circular electrodes using Gauss-Seidel/SOR method
+ * @course          Computational Physics Final Project
+ * @author          Matthew Maldonado
+ * @version         2.0 - Fixed C/C++ mixing, memory leaks, and RNG inefficiency
+ */
+
 //#define DEBUG 1 
 #include <stdio.h>
 #include <gsl/gsl_rng.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
-#include <vector>
-using namespace std;
 #define A(i,j) v1[(p.Nx+1)*(i)+(j)]
-#define B(i,j) v2[(p.Nx+1)*(i)+(j)]
-#define C(i,j) v3[(p.Nx+1)*(i)+(j)]
 
 typedef struct {
   double hx; /* coordinate step */
   double Xmax; /* real-space dimensions */
   double Ymax;
-  double Asize;   //size of A matrix
-  double Bsize;   //size of B matrix
   int Nx;    /* how many steps in x dimension */
   int Ny;    /* how many steps in y dimension */
   int Nt;    /* how many time steps */
-  double eps;
+  double eps; /* convergence threshold */
   double alpha; /* convergence parameter <=2 */
   
   int Nb;    /* how many boundaries */
@@ -29,38 +30,38 @@ typedef struct {
   double R;   /* circle radius */
   double Xc;  /* center X */
   double Yc;  /* center Y */
-  //vector <double> A;
 } params;
 
+/* Global RNG variables - initialized once for efficiency */
+gsl_rng * r;   
+const gsl_rng_type * T;
+
 const double VV[]={1.0, 2.0};
-params p = { 0.1, 3.0, 3.0,101,200, 30, 30, 100, 1.0e-10, 1.0,
+params p = { 0.1, 3.0, 3.0, 30, 30, 100, 1.0e-10, 1.0,
              2, VV ,
              1., 1.5, 1.5}; 
 
-double * v1; /* pointer to a vector */
-double * v2;
-double *v3;
+double * v1; /* pointer to potential matrix */
 
-//Used to initiate potential
-double randumNumber(){
-	const gsl_rng_type * T;
-       	gsl_rng * r;
-     
-       	double u;
-     
-       	gsl_rng_env_setup();
-     
-       	T = gsl_rng_default;
-       	r = gsl_rng_alloc (T);
-     
-       u = gsl_rng_uniform (r);
-      gsl_rng_free (r);
-      return u;
-}    
+/**
+ * Generate a random number between 0 and 1 using GSL RNG.
+ * Uses global RNG initialized once in initialize() for efficiency.
+ * @return Random number in [0,1)
+ */
+double randomNumber(){
+  double u;
+  u = gsl_rng_uniform (r);
+  return u;
+}
      
 
 
-//What region are you stepping through
+/**
+ * Determine which region a grid point belongs to.
+ * @param i Grid index in x direction
+ * @param j Grid index in y direction
+ * @return 0 for outer electrode, 1 for inner circular electrode, -1 for interior
+ */
 int in_region(int i, int j){
   double x=i*p.hx-p.Xc;
   double y=j*p.hx-p.Yc;
@@ -71,8 +72,21 @@ int in_region(int i, int j){
   return (-1); /* inside the region */
 }
 
+/**
+ * Initialize simulation parameters and allocate memory.
+ * Sets up the global RNG, parses command line arguments, and initializes the potential grid.
+ * @param argc Number of command line arguments
+ * @param argv Array of command line argument strings
+ */
 void initialize(int argc, char * argv[]){
   int i,j,reg;
+  
+  /* Initialize GSL random number generator once for efficiency */
+  gsl_rng_env_setup();
+  T = gsl_rng_default;
+  r = gsl_rng_alloc (T);
+  
+  /* Parse command line arguments */
   for(i=1;i<argc;i++){
     if(sscanf(argv[i],"hx=%lg",& p.hx)==1){			   
       printf("# read hx=%g\n",p.hx);				   
@@ -82,12 +96,14 @@ void initialize(int argc, char * argv[]){
     }
     else {
       fprintf(stderr,"error in argv[%d]=%s\n" 
-	      "\tusage: %s [hx=#] [alhpa=#]\n"
-	      "\twhere 0<=alpha<2 is theconvergence factor\n"
+	      "\tusage: %s [hx=#] [alpha=#]\n"
+	      "\twhere 0<=alpha<2 is the convergence factor\n"
 	      ,i,argv[i],argv[0]);
       exit(-1);
     }
   }
+  
+  /* Validate parameters */
   if(p.hx<=0){
     printf("ERROR: step size hx=%g should be positive\n",p.hx);
     exit(-1); /*error */
@@ -97,7 +113,9 @@ void initialize(int argc, char * argv[]){
            " should satisfy 0<=alpha<2\n",p.alpha);
     exit(-1); /*error */
   }
-  p.Nx=ceil(p.Xmax/p.hx); //Max steps base on total dived by steps for your matrix
+  
+  /* Calculate grid dimensions */
+  p.Nx=ceil(p.Xmax/p.hx);
   p.Ny=ceil(p.Ymax/p.hx);
   
   printf("# %s: %s relaxation for Laplace equation in 2D\n"
@@ -105,30 +123,19 @@ void initialize(int argc, char * argv[]){
          argv[0], p.alpha==1?"Gauss-Seidel":"SOR",
          p.hx, p.Nx, p.Ny, p.Nt, p.eps, p.alpha);
   
-  
-    v2=calloc((p.A+1)*(p.A+1),sizeof(double)); //allocates memory for v2 matrix
-  /* allocate mem for the A */
-    if(v2==NULL){
-       fprintf(stderr,"failed to allocate mem for v2\n");
-       exit(-1);
-     }
-  
-   v3=calloc((p.B+1)*(p.B+1),sizeof(double)); //allocates memory for v3 matrix
-  /* allocate mem for the B */
-   if(v3==NULL){
-   fprintf(stderr,"failed to allocate mem for v3\n");
-   exit(-1);
-   }
-  
+  /* Display boundary potentials */
   for(i=0;i<p.Nb;i++)
     printf(" Vext[%d]=%g",i,p.Vext[i]);
-    printf("\n");
-    v1=calloc((p.Nx+1)*(p.Ny+1),sizeof(double)); 
-  /* allocate mem for the potential */
+  printf("\n");
+  
+  /* Allocate memory for the potential grid */
+  v1=calloc((p.Nx+1)*(p.Ny+1),sizeof(double)); 
   if(v1==NULL){
     fprintf(stderr,"failed to allocate mem for v1\n");
     exit(-1);
   }
+  
+  /* Set boundary values */
   for(i=0;i<=p.Nx;i++)
     for(j=0;j<=p.Ny;j++){
       reg=in_region(i,j);
@@ -137,14 +144,22 @@ void initialize(int argc, char * argv[]){
     }  
 }
 
+/**
+ * Clean up and deallocate memory.
+ * Frees the potential grid and the global RNG.
+ */
 void finalize(void){
   free(v1);
-  // free(v2);
-  // free(v3);   /* deallocate the arrays */
+  gsl_rng_free (r);  /* Free the global RNG */
 }
 
 
-void output_matrix(double *v1){ /* convenient function for debugging */
+/**
+ * Output the potential matrix for debugging.
+ * Prints the entire potential grid in a human-readable format.
+ * @param v1 Pointer to the potential array
+ */
+void output_matrix(double *v1){
   int i,j;
   for(i=0;i<=p.Nx;i++){
     printf("#");
@@ -155,7 +170,14 @@ void output_matrix(double *v1){ /* convenient function for debugging */
   printf("#\n");
 }
 
-double do_charge(double *v1, int n){ /* charge on electrode n */
+/**
+ * Calculate the charge on a specific electrode.
+ * Uses Gauss's law by summing the electric field at the electrode boundary.
+ * @param v1 Pointer to the potential array
+ * @param n Electrode number
+ * @return Charge on electrode n
+ */
+double do_charge(double *v1, int n){
   int i,j;
   double charg=0;
   const double pi=M_PI;
@@ -176,15 +198,24 @@ double do_charge(double *v1, int n){ /* charge on electrode n */
   return charg/(2.0*pi);
 }
 
+/**
+ * Output the charges on all electrodes.
+ * @param v Pointer to the potential array
+ */
 void output_charge( double *v){
-  int i;  /* output charge on every electrode */
+  int i;
   printf("# charges: ");
   for(i=0;i<p.Nb;i++)
     printf(" %g",do_charge(v,i));
   printf("\n");  
 }
 
-void output_col(double *v1){ /* output for gnuplot's splot  */
+/**
+ * Output the potential grid in column format for gnuplot's splot.
+ * Outputs x, y, and potential values in a format suitable for 3D plotting.
+ * @param v1 Pointer to the potential array
+ */
+void output_col(double *v1){
   int i,j;
   for(i=0;i<=p.Nx;i++){
     for(j=0;j<=p.Ny;j++)
@@ -194,7 +225,11 @@ void output_col(double *v1){ /* output for gnuplot's splot  */
   printf("\n");
 }
 
-//Does Gauss-Seidel method to solve differential equation
+/**
+ * Perform one iteration of the Gauss-Seidel/SOR method.
+ * Updates the potential at all interior points using the relaxation formula.
+ * @return 1 if converged (error < eps), 0 otherwise
+ */
 int do_gs(){
   int j,i,k;
   double error, diff, val;
@@ -220,8 +255,14 @@ int do_gs(){
   }
   return 0;
 }
-// The main function of the program. This is is where the program
-// actually runs.
+/**
+ * Main function - runs the simulation.
+ * Initializes the system, iterates the Gauss-Seidel/SOR solver,
+ * and outputs results.
+ * @param argc Number of command line arguments
+ * @param argv Array of command line argument strings
+ * @return 0 on success
+ */
 int main(int argc, char * argv[]){
   int iter=0;
   initialize(argc, argv);
@@ -242,8 +283,8 @@ int main(int argc, char * argv[]){
   output_charge(v1);
     
   finalize();
-  fprintf(stderr,"hx=%5g alpha=%5g %g seconds\n",p.hx,
-	  p.alpha,(double) (clock())/CLOCKS_PER_SEC);
+  fprintf(stderr,"hx=%5g alpha=%5g iterations=%d %g seconds\n",p.hx,
+	  p.alpha, iter, (double) (clock())/CLOCKS_PER_SEC);
   
   return 0;
 }
