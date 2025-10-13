@@ -419,10 +419,10 @@ int do_gs(){
           /* Thermal-weighted average of four neighbors
            * Each term: A(neighbor) * exp(-(V(center)+V(neighbor))/(2*T))
            * This is the core thermal modification to Laplace equation */
-          val=0.25*(A(i+1,j)*exp(-1*(V(i,j)+V(i+1,j))/(2*p.T)) +
-                    A(i-1,j)*exp(-1*(V(i,j)+V(i-1,j))/(2*p.T)) +
-                    A(i,j+1)*exp(-1*(V(i,j)+V(i,j+1))/(2*p.T)) +
-                    A(i,j-1)*exp(-1*(V(i,j)+V(i,j-1))/(2*p.T)));
+          val=0.25*(A(i+1,j)*exp(-(V(i,j)+V(i+1,j))/(2*p.T)) +
+                    A(i-1,j)*exp(-(V(i,j)+V(i-1,j))/(2*p.T)) +
+                    A(i,j+1)*exp(-(V(i,j)+V(i,j+1))/(2*p.T)) +
+                    A(i,j-1)*exp(-(V(i,j)+V(i,j-1))/(2*p.T)));
           
           diff=fabs(val-A(i,j));  /* Change from previous iteration */
           A(i,j)=val;              /* Update with new value (Gauss-Seidel) */
