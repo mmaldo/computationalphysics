@@ -1,64 +1,71 @@
 /**
- * @file            fixedPointsolve.cpp
- * @description     This program aprroximates a solution to a algebraic equation
- *                  using fixed point iteration.
+ * @file            fixedPointSolve.c
+ * @description     This program approximates a solution to x^2 - 5 = 0
+ *                  using fixed point iteration: x_{n+1} = x_n - A(x_n^2 - 5)
+ *                  where A is a convergence parameter.
+ *                  For convergence near sqrt(5), we need |1 - 2A*sqrt(5)| < 1
+ *                  which gives 0 < A < 2/sqrt(5) ≈ 0.894
  * @course          Physics 177
  * @assignment      Homework 1 Problem 2
  * @date            4/7/2011
- * @author          Matthew Maldoando
- * @version         1.0
+ * @author          Matthew Maldonado
+ * @version         2.0
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 
-const int N = 10;   //number of iterations
-double A = 0.1;  //constant number
-/**
- * Function used for approximation f(x)=x-A(x^2-5)
- * @param initialPoint is the initial guess
- * @param A is a constant
- * @pre   initialPoint is initialized by the calling program
- * @post  initialPoint is sent into the approixmation function
- *        to get a new vslue
- * @return the the new value of the function
- */
-double fun(double intialPoint, double A);
+const int N = 10;        /* number of iterations */
+const double A = 0.1;    /* convergence parameter - must be < 2/sqrt(5) ≈ 0.894 for convergence */
 
 /**
- * @retunrn zero if application executes succesfully
+ * Fixed point iteration function for solving x^2 - 5 = 0
+ * Formula: x_{n+1} = x_n - A(x_n^2 - 5)
+ * @param initialPoint is the current approximation
+ * @param alpha is the convergence parameter
+ * @pre   initialPoint is initialized by the calling program
+ * @pre   alpha must satisfy convergence criteria: 0 < alpha < 2/sqrt(5)
+ * @post  returns the next approximation in the iteration
+ * @return the new value x_{n+1}
+ */
+double fixedPointIteration(double initialPoint, double alpha);
+
+/**
+ * @return zero if application executes successfully
  */
 int main()
 {
-    double initialPoint = 1;        //initial guess
-    double newPoint = initialPoint; //variable to store newpoint
-    double previousPoint;           //variable to store x_n-1
-    double convergenceCompare;        //|x_n-sqrt(5)|
-    int i;                        //counter variabel
-   // FILE *fp;                       //file to write result to
-    //enter file to write to if you want
-    //fp = fopen("C:/Users/mmaldonado/Documents/My Dropbox/UCR/Spring Quarter/Physics 177/Assignments/gnuplot/fixedPointsolve.data", "w");
-    printf("#Fixed Point Solve\n#n   X_n-1   X_n   |x_n-sqrt(5)|\n");
+    double initialPoint = 1.0;      /* initial guess */
+    double newPoint = initialPoint; /* x_n */
+    double previousPoint;           /* x_{n-1} */
+    double convergenceError;        /* |x_n - sqrt(5)| */
+    int i;                          /* iteration counter */
+    
+    printf("#Fixed Point Iteration for solving x^2 - 5 = 0\n");
+    printf("#Using iteration: x_{n+1} = x_n - A(x_n^2 - 5) with A = %g\n", A);
+    printf("#n\tX_{n-1}\t\tX_n\t\t|x_n - sqrt(5)|\n");
+    
     for(i = 0; i < N; i++){
         previousPoint = newPoint;
-        newPoint = fun(newPoint,A);
-        convergenceCompare = fabs(newPoint - sqrt(5));
-        //fprintf(fp,"%d      %g      %g      %g\n",i+1, previousPoint, newPoint, convergenceCompare);
-        printf("%d      %g      %g     %g\n",i+1, previousPoint, newPoint, convergenceCompare);
+        newPoint = fixedPointIteration(newPoint, A);
+        convergenceError = fabs(newPoint - sqrt(5));
+        printf("%d\t%.10g\t%.10g\t%.10g\n", i+1, previousPoint, newPoint, convergenceError);
     }
-    //fclose(fp);  undo commentif writing to file
+    
+    printf("\n# Exact value: sqrt(5) = %.15f\n", sqrt(5));
+    printf("# Final approximation: %.15f\n", newPoint);
+    printf("# Final error: %.15e\n", convergenceError);
+    printf("\n# Note: Fixed point iteration converges linearly (slower than Newton's method)\n");
+    printf("# Convergence rate depends on |1 - 2A*sqrt(5)| = |1 - 2*%g*%.6f| = %.6f\n", 
+           A, sqrt(5), fabs(1.0 - 2.0*A*sqrt(5)));
+    
     return 0;
 }
 
-double fun(double intialPoint, double A){
-    double x = intialPoint;
-    double a = A;
-return (x - a*((x*x)-5));
-
+double fixedPointIteration(double initialPoint, double alpha){
+    double x = initialPoint;
+    
+    /* Fixed point iteration: x_{n+1} = x - alpha*(x^2 - 5) */
+    return (x - alpha*((x*x) - 5.0));
 }
-
-
-
-
-
