@@ -41,17 +41,22 @@ params p = { 0.1, 3.0, 3.0, 30, 30, 100, 1.0e-10, 1.0,
              2, VV ,
              1., 1.5, 1.5}; 
 
-double * v1; /* pointer to potential matrix */
+double * v1; /* pointer to the potential array */
 
-/**
- * Generate a random number between 0 and 1 using GSL RNG.
- * Uses global RNG initialized once in initialize() for efficiency.
- * @return Random number in [0,1)
- */
-double randomNumber(){
-  double u;
-  u = gsl_rng_uniform (r);
-  return u;
+/* Global RNG for efficient random number generation */
+gsl_rng * rng_generator = NULL;
+
+/* Initialize the random number generator once at program start */
+void init_rng(void){
+  const gsl_rng_type * T;
+  gsl_rng_env_setup();
+  T = gsl_rng_default;
+  rng_generator = gsl_rng_alloc(T);
+}
+
+/* Generate a random number using the global RNG */
+double randomNumber(void){
+  return gsl_rng_uniform(rng_generator);
 }
      
 
@@ -123,13 +128,11 @@ void initialize(int argc, char * argv[]){
          argv[0], p.alpha==1?"Gauss-Seidel":"SOR",
          p.hx, p.Nx, p.Ny, p.Nt, p.eps, p.alpha);
   
-  /* Display boundary potentials */
   for(i=0;i<p.Nb;i++)
     printf(" Vext[%d]=%g",i,p.Vext[i]);
   printf("\n");
-  
-  /* Allocate memory for the potential grid */
-  v1=calloc((p.Nx+1)*(p.Ny+1),sizeof(double)); 
+  /* allocate mem for the potential */
+    v1=calloc((p.Nx+1)*(p.Ny+1),sizeof(double)); 
   if(v1==NULL){
     fprintf(stderr,"failed to allocate mem for v1\n");
     exit(-1);
@@ -150,7 +153,8 @@ void initialize(int argc, char * argv[]){
  */
 void finalize(void){
   free(v1);
-  gsl_rng_free (r);  /* Free the global RNG */
+  if(rng_generator != NULL)
+    gsl_rng_free(rng_generator);  /* free the RNG */
 }
 
 
@@ -225,12 +229,10 @@ void output_col(double *v1){
   printf("\n");
 }
 
-/**
- * Perform one iteration of the Gauss-Seidel/SOR method.
- * Updates the potential at all interior points using the relaxation formula.
- * @return 1 if converged (error < eps), 0 otherwise
+/* Does Gauss-Seidel method to solve differential equation
+ * Returns the number of iterations performed (positive if converged, negative if max iterations reached)
  */
-int do_gs(){
+int do_gs(int *iterations_out){
   int j,i,k;
   double error, diff, val;
   for(k=0;k<p.Nt;k++){
@@ -251,20 +253,21 @@ int do_gs(){
     printf("# this is v1, k=%d\n",k);
     output_matrix(v1);  
 #endif /* DEBUG */
-    if(error<p.eps) return 1; /* done */
+    if(error<p.eps){
+      *iterations_out = k+1;  /* converged */
+      return 1;
+    }
   }
+  *iterations_out = p.Nt;  /* max iterations reached */
   return 0;
 }
-/**
- * Main function - runs the simulation.
- * Initializes the system, iterates the Gauss-Seidel/SOR solver,
- * and outputs results.
- * @param argc Number of command line arguments
- * @param argv Array of command line argument strings
- * @return 0 on success
- */
+/* The main function of the program. This is where the program actually runs. */
 int main(int argc, char * argv[]){
   int iter=0;
+  int gs_iterations=0;
+  int converged;
+  
+  init_rng();  /* Initialize the random number generator */
   initialize(argc, argv);
 
   do{
@@ -277,14 +280,17 @@ int main(int argc, char * argv[]){
     fflush(stdout);
     iter++;    
   }
-  while ((! do_gs()) && iter<p.Nt); 
+  while ((converged = !do_gs(&gs_iterations)) && iter<p.Nt); 
 
   output_col(v1); /* final output */
   output_charge(v1);
     
   finalize();
-  fprintf(stderr,"hx=%5g alpha=%5g iterations=%d %g seconds\n",p.hx,
-	  p.alpha, iter, (double) (clock())/CLOCKS_PER_SEC);
+  
+  fprintf(stderr,"hx=%5g alpha=%5g iterations=%d %s %g seconds\n",
+          p.hx, p.alpha, gs_iterations,
+          converged ? "(max reached)" : "(converged)",
+          (double)(clock())/CLOCKS_PER_SEC);
   
   return 0;
 }
