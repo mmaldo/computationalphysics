@@ -1,22 +1,10 @@
-/*
- * 2D Laplace Equation Solver using Gauss-Seidel and SOR Methods
- * 
- * This program solves the 2D Laplace equation (∇²φ = 0) for electrostatic 
- * potential in a capacitor-like geometry:
- * - Outer rectangular boundary at potential V₀ = 1.0V
- * - Inner circular electrode at potential V₁ = 2.0V
- * 
- * The Gauss-Seidel method (alpha=1) or Successive Over-Relaxation (SOR, alpha>1)
- * iteratively updates each grid point to the weighted average of its four neighbors
- * until the solution converges to the specified tolerance.
- * 
- * The charge calculation uses Gauss's law: Q = ε₀∮E·dA, computed by integrating
- * the electric field (gradient of potential) normal to each electrode surface.
- * 
- * SOR parameter alpha:
- * - alpha = 1: Standard Gauss-Seidel
- * - 1 < alpha < 2: Over-relaxation for faster convergence
- * - Optimal alpha ≈ 2/(1 + π/N) for N×N grid
+/**
+ * @file            finalproject.c
+ * @description     Solves 2D Laplace equation for electrostatic potential between
+ *                  rectangular and circular electrodes using Gauss-Seidel/SOR method
+ * @course          Computational Physics Final Project
+ * @author          Matthew Maldonado
+ * @version         2.0 - Fixed C/C++ mixing, memory leaks, and RNG inefficiency
  */
 
 //#define DEBUG 1 
@@ -25,7 +13,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
-
 #define A(i,j) v1[(p.Nx+1)*(i)+(j)]
 
 typedef struct {
@@ -35,7 +22,7 @@ typedef struct {
   int Nx;    /* how many steps in x dimension */
   int Ny;    /* how many steps in y dimension */
   int Nt;    /* how many time steps */
-  double eps;
+  double eps; /* convergence threshold */
   double alpha; /* convergence parameter <=2 */
   
   int Nb;    /* how many boundaries */
@@ -44,6 +31,10 @@ typedef struct {
   double Xc;  /* center X */
   double Yc;  /* center Y */
 } params;
+
+/* Global RNG variables - initialized once for efficiency */
+gsl_rng * r;   
+const gsl_rng_type * T;
 
 const double VV[]={1.0, 2.0};
 params p = { 0.1, 3.0, 3.0, 30, 30, 100, 1.0e-10, 1.0,
@@ -70,7 +61,12 @@ double randomNumber(void){
      
 
 
-//What region are you stepping through
+/**
+ * Determine which region a grid point belongs to.
+ * @param i Grid index in x direction
+ * @param j Grid index in y direction
+ * @return 0 for outer electrode, 1 for inner circular electrode, -1 for interior
+ */
 int in_region(int i, int j){
   double x=i*p.hx-p.Xc;
   double y=j*p.hx-p.Yc;
@@ -81,8 +77,21 @@ int in_region(int i, int j){
   return (-1); /* inside the region */
 }
 
+/**
+ * Initialize simulation parameters and allocate memory.
+ * Sets up the global RNG, parses command line arguments, and initializes the potential grid.
+ * @param argc Number of command line arguments
+ * @param argv Array of command line argument strings
+ */
 void initialize(int argc, char * argv[]){
   int i,j,reg;
+  
+  /* Initialize GSL random number generator once for efficiency */
+  gsl_rng_env_setup();
+  T = gsl_rng_default;
+  r = gsl_rng_alloc (T);
+  
+  /* Parse command line arguments */
   for(i=1;i<argc;i++){
     if(sscanf(argv[i],"hx=%lg",& p.hx)==1){			   
       printf("# read hx=%g\n",p.hx);				   
@@ -98,6 +107,8 @@ void initialize(int argc, char * argv[]){
       exit(-1);
     }
   }
+  
+  /* Validate parameters */
   if(p.hx<=0){
     printf("ERROR: step size hx=%g should be positive\n",p.hx);
     exit(-1); /*error */
@@ -107,7 +118,9 @@ void initialize(int argc, char * argv[]){
            " should satisfy 0<=alpha<2\n",p.alpha);
     exit(-1); /*error */
   }
-  p.Nx=ceil(p.Xmax/p.hx); //Max steps base on total dived by steps for your matrix
+  
+  /* Calculate grid dimensions */
+  p.Nx=ceil(p.Xmax/p.hx);
   p.Ny=ceil(p.Ymax/p.hx);
   
   printf("# %s: %s relaxation for Laplace equation in 2D\n"
@@ -124,6 +137,8 @@ void initialize(int argc, char * argv[]){
     fprintf(stderr,"failed to allocate mem for v1\n");
     exit(-1);
   }
+  
+  /* Set boundary values */
   for(i=0;i<=p.Nx;i++)
     for(j=0;j<=p.Ny;j++){
       reg=in_region(i,j);
@@ -132,6 +147,10 @@ void initialize(int argc, char * argv[]){
     }  
 }
 
+/**
+ * Clean up and deallocate memory.
+ * Frees the potential grid and the global RNG.
+ */
 void finalize(void){
   free(v1);
   if(rng_generator != NULL)
@@ -139,7 +158,12 @@ void finalize(void){
 }
 
 
-void output_matrix(double *v1){ /* convenient function for debugging */
+/**
+ * Output the potential matrix for debugging.
+ * Prints the entire potential grid in a human-readable format.
+ * @param v1 Pointer to the potential array
+ */
+void output_matrix(double *v1){
   int i,j;
   for(i=0;i<=p.Nx;i++){
     printf("#");
@@ -150,7 +174,14 @@ void output_matrix(double *v1){ /* convenient function for debugging */
   printf("#\n");
 }
 
-double do_charge(double *v1, int n){ /* charge on electrode n */
+/**
+ * Calculate the charge on a specific electrode.
+ * Uses Gauss's law by summing the electric field at the electrode boundary.
+ * @param v1 Pointer to the potential array
+ * @param n Electrode number
+ * @return Charge on electrode n
+ */
+double do_charge(double *v1, int n){
   int i,j;
   double charg=0;
   const double pi=M_PI;
@@ -171,15 +202,24 @@ double do_charge(double *v1, int n){ /* charge on electrode n */
   return charg/(2.0*pi);
 }
 
+/**
+ * Output the charges on all electrodes.
+ * @param v Pointer to the potential array
+ */
 void output_charge( double *v){
-  int i;  /* output charge on every electrode */
+  int i;
   printf("# charges: ");
   for(i=0;i<p.Nb;i++)
     printf(" %g",do_charge(v,i));
   printf("\n");  
 }
 
-void output_col(double *v1){ /* output for gnuplot's splot  */
+/**
+ * Output the potential grid in column format for gnuplot's splot.
+ * Outputs x, y, and potential values in a format suitable for 3D plotting.
+ * @param v1 Pointer to the potential array
+ */
+void output_col(double *v1){
   int i,j;
   for(i=0;i<=p.Nx;i++){
     for(j=0;j<=p.Ny;j++)
