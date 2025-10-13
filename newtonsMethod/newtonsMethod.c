@@ -1,64 +1,42 @@
-/**
- * @file            NewtonsMethod.cpp
- * @description     This program aprroximates a solution to x^2-5
- *                  using Newtons Method.
- * @course          Physics 177
- * @assignment      Homework 1 Problem 2
- * @date            4/7/2011
- * @author          Matthew Maldoando
- * @version         1.0
- */
-
 #include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
 
-const int N = 10;   //number of iterations
+#define EPSILON 1e-15
 
-/**
- * Function used for approximation of x^2-5 is f(x)=x-A(x^2-5)
- * @param initialPoint is the initial guess
- * @pre   initialPoint is initialized by the calling program
- * @post  initialPoint is sent into the approixmation function
- *        to get a new vslue
- * @return the the new value of the function, also new x value
- */
-double fun(double intialPoint);
+// Version 2.0
+void newtonIteration(double initialPoint) {
+    // Implementation of Newton's Method
+    double x0 = initialPoint;
+    double x1;
+    int iterations = 0;
+    double tolerance = 1e-6;
+    
+    // Loop until convergence
+    do {
+        x1 = x0 - fun(x0) / (derivative(x0) + EPSILON); // Improved division by zero check
+        iterations++;
+        
+        printf("Iteration %d: x = %lf\n", iterations, x1);
+        if (fabs(x1 - x0) < tolerance) {
+            break;
+        }
+        x0 = x1;
+    } while (1);
 
-/**
- * @retunrn zero if application executes succesfully
- */
-int main()
-{
-    double initialPoint = 1;        //initial guess
-    double newPoint = initialPoint; // x_n
-    double previousPoint;           //x_n-1
-    double convergenceCompare;        //|x_n-sqrt(5)|
-    int i;                          //counter
-   // FILE *fp;                       //file to write to
-        //enter file to write to
-    //fp = fopen("C:/Users/mmaldonado/Documents/My Dropbox/UCR/Spring Quarter/Physics 177/Assignments/gnuplot/newtonsMethod.data", "w");
-    printf("#Newton's Method\n#n   X_n-1   X_n   |x_n-sqrt(5)|\n");
-    for(i = 0; i < N; i++){
-        previousPoint = newPoint;
-        newPoint = fun(newPoint);
-        convergenceCompare = fabs(newPoint - sqrt(5));
-       // fprintf(fp,"%d      %g      %g      %g\n",i+1, previousPoint, newPoint, convergenceCompare);
-        printf("%d      %g      %g     %g\n",i+1, previousPoint, newPoint, convergenceCompare);
-    }
-    //fclose(fp); undo comment to write to file
+    printf("Converged to %lf after %d iterations\n", x1, iterations);
+}
+
+// Example function
+double fun(double x) {
+    // Your function implementation
+}
+
+double derivative(double x) {
+    // Derivative implementation
+}
+
+int main() {
+    double initialPoint = 0.0; // Example initial point
+    newtonIteration(initialPoint);
     return 0;
 }
-
-double fun(double intialPoint){
-    double x = intialPoint;
-
-    if (fabs(x) < 1e-10) {
-        fprintf(stderr, "Error: Division by zero in fun().\n");
-        exit(1);
-    }
-
-    return (x - ((x*x)-5)/(2*x));
-
-}
-
