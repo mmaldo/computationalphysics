@@ -5,6 +5,7 @@ finalproj
 finalproject
 *.a
 *.so
+newtonsMethod/newtonsMethod
 
 # IDE files
 .vscode/
