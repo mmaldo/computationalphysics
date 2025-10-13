@@ -1,14 +1,13 @@
 //#define DEBUG 1 
 #include <stdio.h>
 #include <gsl/gsl_rng.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
-#define A(i,j) v1[(30)*(i)+(j)]  // potnetial
+#define A(i,j) v1[(61)*(i)+(j)]  // potential
 #define B(m,n) v2[(p.Nx)*(m)+(n)]  //RandomNumbers
-#define C(k,l) v3[(31)*(k)+(l)]  //Kernal
-#define V(i,j) v4[(31)*(i)+(j)]
+#define C(k,l) v3[(51)*(k)+(l)]  //Kernel
+#define V(i,j) v4[(61)*(i)+(j)]
 
 typedef struct {
   double hx; /* coordinate step */
@@ -77,8 +76,8 @@ void initialize(int argc, char * argv[]){
     }
     else {
       fprintf(stderr,"error in argv[%d]=%s\n" 
-	      "\tusage: %s [hx=#] [alhpa=#]\n"
-	      "\twhere 0<=alpha<2 is theconvergence factor\n"
+	      "\tusage: %s [hx=#] [alpha=#]\n"
+	      "\twhere 0<=alpha<2 is the convergence factor\n"
 	      ,i,argv[i],argv[0]);
       exit(-1);
     }
@@ -116,7 +115,7 @@ void initialize(int argc, char * argv[]){
    v4=calloc((61)*(61),sizeof(double)); 
   /* allocate mem for the B */
    if(v4==NULL){
-   fprintf(stderr,"failed to allocate mem for v3\n");
+   fprintf(stderr,"failed to allocate mem for v4\n");
    exit(-1);
    }
   
@@ -160,7 +159,8 @@ void initialize(int argc, char * argv[]){
 void finalize(void){
   free(v1);
   free(v2);
-  free(v3);   /* deallocate the arrays */
+  free(v3);
+  free(v4);   /* deallocate the arrays */
   gsl_rng_free (r);
 }
 
@@ -174,7 +174,7 @@ void convolute(double *v1,double *v2,double *v3){
 	for(l=0;l < a;l++){
           m=(a-1)-k+i;
           n=(a-1)-l+j;
-	  A(i,j)= B(m,n)*C(k,l);
+	  A(i,j)+= B(m,n)*C(k,l);
 	  
 	}
       }

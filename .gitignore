@@ -1,0 +1,14 @@
+# Compiled binaries
+*.o
+*.out
+finalproj
+*.a
+*.so
+
+# IDE files
+.vscode/
+.idea/
+
+# Build artifacts
+*.exe
+*.dll
